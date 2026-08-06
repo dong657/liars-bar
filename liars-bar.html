@@ -117,6 +117,8 @@ body{
 .card:active{transform:scale(.93)}
 .card.selected{border-color:var(--gold);box-shadow:0 0 16px rgba(212,168,67,.5);margin-top:var(--card-sel-y)}
 .card.red{color:var(--red)}.card.black{color:#222}
+.card-back-face{background:linear-gradient(135deg,#1a3a5c 0%,#264e7a 50%,#1a3a5c 100%);border-color:#3a6ea5;color:#4a8ec5}
+.card-back-face .rank{font-size:28px;color:rgba(255,255,255,.3)}
 .card .rank{font-size:22px;line-height:1}
 .card .suit{font-size:20px;line-height:1;margin-top:-2px}
 .card .suit-sm{position:absolute;top:5px;left:6px;font-size:12px}
@@ -295,7 +297,10 @@ body{
       <button class="rank-btn" data-r="A">A</button><button class="rank-btn" data-r="K">K</button>
       <button class="rank-btn" data-r="Q">Q</button><button class="rank-btn" data-r="J">J</button>
       <button class="rank-btn" data-r="10">10</button><button class="rank-btn" data-r="9">9</button>
-      <button class="rank-btn" data-r="8">8</button>
+      <button class="rank-btn" data-r="8">8</button><button class="rank-btn" data-r="7">7</button>
+      <button class="rank-btn" data-r="6">6</button><button class="rank-btn" data-r="5">5</button>
+      <button class="rank-btn" data-r="4">4</button><button class="rank-btn" data-r="3">3</button>
+      <button class="rank-btn" data-r="2">2</button>
     </div>
     <div class="actions" id="actions"></div>
     <div class="hand-area"><div class="hand-cards" id="handCards"></div></div>
@@ -372,11 +377,11 @@ function startOnline(){
     if(!ni.value)ni.value='玩家'+ri(100,999);
   });
 
-  S.mqtt.on('message', (topic, payload)=>{
+  S.mqtt.on('message', async (topic, payload)=>{
     try{
       const msg=JSON.parse(payload.toString());
       if(msg.from===S.myId)return; // 忽略自己的消息
-      handleMqttMsg(msg);
+      await handleMqttMsg(msg);
     }catch(e){}
   });
 
@@ -473,7 +478,7 @@ function hostStartGame(){
 }
 
 // ═══ MQTT 消息处理 ═══
-function handleMqttMsg(msg){
+async function handleMqttMsg(msg){
   switch(msg.type){
     case 'lobby':
       if(!S.isHost){S.players=msg.players;S.roomCode=S.roomCode;updateLobbyUI()}
@@ -519,7 +524,7 @@ function handleMqttMsg(msg){
       renderGame();
       break;
     case 'action':
-      if(S.isHost&&S.G){handlePlayerAction(msg)}
+      if(S.isHost&&S.G){await handlePlayerAction(msg)}
       break;
   }
 }
@@ -551,7 +556,7 @@ function initOnlineGame(){
   }
   return{
     phase:'playing',players:ps,currentIdx:ri(0,total-1),
-    tableCards:[],claimedRank:null,claimedCount:0,lastPlayerIdx:-1,
+    tableCards:[],claimedRank:null,claimedCount:0,lastPlayerIdx:-1,_revealCards:false,
     round:1,logs:[],
     rouletteChamber:6,rouletteFired:0,
   };
@@ -585,9 +590,10 @@ function broadcastGameState(){
         cards:p.cards,
       })),
       currentIdx:S.G.currentIdx,
-      tableCards:S.G.phase!=='roulette'?S.G.tableCards:[],
+      tableCards:S.G.tableCards||[],
       claimedRank:S.G.claimedRank,
       claimedCount:S.G.claimedCount,
+      _revealCards:S.G._revealCards||false,
       round:S.G.round,
       rouletteState:S.G.rouletteState||null,
       winner:S.G.winner||null,
@@ -694,7 +700,7 @@ async function processChallenge(challengerId, doChallenge){
 
   if(!doChallenge){
     addLog(`🤝 ${challenger.name} 选择相信`);
-    G.tableCards=[];G.claimedRank=null;G.claimedCount=0;
+    G.tableCards=[];G.claimedRank=null;G.claimedCount=0;G._revealCards=false;
     broadcastGameState();
     startTurnTimer();
     return;
@@ -703,12 +709,16 @@ async function processChallenge(challengerId, doChallenge){
   addLog(`❗ ${challenger.name} 质疑 ${liar.name} 在说谎！`);
   broadcastGameState();await slp(1200);
 
+  // 翻牌揭晓
+  G._revealCards=true;
+  broadcastGameState();await slp(800);
+
   const allMatch=G.tableCards.every(c=>c.rank===G.claimedRank);
   const realRank=G.tableCards.length>0?G.tableCards[0].rank:'?';
   let loser;
   if(allMatch){addLog(`✅ 验牌：全是 ${realRank}，${challenger.name} 质疑错误！`);loser=challenger}
   else{addLog(`❌ 验牌：实际是 ${realRank}，${liar.name} 说谎！`);loser=liar}
-  broadcastGameState();await slp(1000);
+  broadcastGameState();await slp(1500);
 
   await doRoulette(loser);
 }
@@ -731,7 +741,7 @@ async function doRoulette(loser){
   }
 
   G.phase='playing';G.rouletteState=null;
-  G.tableCards=[];G.claimedRank=null;G.claimedCount=0;
+  G.tableCards=[];G.claimedRank=null;G.claimedCount=0;G._revealCards=false;
 
   if(aliveCnt()<=1){G.phase='over';G.winner=G.players.find(p=>p.alive)?.name||'无人';addLog(`🏆 ${G.winner} 获胜！`);clearTurnTimer();broadcastGameState();return}
   if(G.players.find(p=>p.alive&&p.cards.length===0)){G.phase='over';G.winner=G.players.find(p=>p.cards.length===0).name;addLog(`🏆 ${G.winner} 获胜！`);clearTurnTimer();broadcastGameState();return}
@@ -786,11 +796,16 @@ function renderTable(){
   const clEl=document.getElementById('tableClaim');
   if(S.G.phase==='roulette'){cEl.innerHTML='<span class="table-empty">俄罗斯轮盘...</span>';clEl.textContent='';return}
   if(S.G.tableCards&&S.G.tableCards.length>0){
+    // 牌面朝下：只在翻牌阶段(rr_show)显示真面目
+    const reveal=S.G._revealCards===true||S.G.phase==='roulette';
     cEl.innerHTML=S.G.tableCards.map(c=>{
-      const cls=isR(c.suit)?'red':'black';
-      return `<div class="card ${cls}" style="pointer-events:none"><span class="suit-sm">${c.suit}</span><span class="rank">${c.rank}</span><span class="suit">${c.suit}</span></div>`;
+      if(reveal){
+        const cls=isR(c.suit)?'red':'black';
+        return `<div class="card ${cls}" style="pointer-events:none"><span class="suit-sm">${c.suit}</span><span class="rank">${c.rank}</span><span class="suit">${c.suit}</span></div>`;
+      }
+      return `<div class="card card-back-face" style="pointer-events:none"><span class="rank">🂠</span></div>`;
     }).join('');
-    clEl.textContent=`声称：${S.G.claimedCount}张 ${S.G.claimedRank}`;
+    clEl.textContent=reveal?`实际：${S.G.tableCards.map(c=>c.rank).join(' ')}`:`声称：${S.G.claimedCount}张 ${S.G.claimedRank}`;
   }else{
     cEl.innerHTML='<span class="table-empty">等待出牌...</span>';clEl.textContent='';
   }
@@ -923,8 +938,9 @@ async function singleDoChallenge(doIt){
   const G=S.G;
   const challenger=G.players[G.currentIdx];
   const liar=G.players[G.lastPlayerIdx];
-  if(!doIt){addLog(`🤝 ${challenger.name} 选择相信`);G.tableCards=[];G.claimedRank=null;G.claimedCount=0;renderGame();await slp(400);if(challenger.isAI)aiPlay(challenger);return}
+  if(!doIt){addLog(`🤝 ${challenger.name} 选择相信`);G.tableCards=[];G.claimedRank=null;G.claimedCount=0;G._revealCards=false;renderGame();await slp(400);if(challenger.isAI)aiPlay(challenger);return}
   addLog(`❗ ${challenger.name} 质疑 ${liar.name} 在说谎！`);renderGame();await slp(1000);
+  G._revealCards=true;renderGame();await slp(800);
   const ok=G.tableCards.every(c=>c.rank===G.claimedRank);
   const real=G.tableCards.length>0?G.tableCards[0].rank:'?';
   let loser;
@@ -944,7 +960,7 @@ async function singleRoulette(loser){
   renderGame();await slp(800);
   if(aliveCnt()<=1){G.phase='over';G.winner=G.players.find(p=>p.alive)?.name||'无人';addLog(`🏆 ${G.winner} 获胜！`);renderGame();return}
   if(G.players[G.humanIdx]&&G.players[G.humanIdx].cards.length===0){G.phase='over';G.winner=G.players[G.humanIdx].name;addLog(`🏆 ${G.winner} 获胜！`);renderGame();return}
-  G.tableCards=[];G.claimedRank=null;G.claimedCount=0;G.currentIdx=nextAlive(loser.idx);
+  G.tableCards=[];G.claimedRank=null;G.claimedCount=0;G._revealCards=false;G.currentIdx=nextAlive(loser.idx);
   renderGame();const n=G.players[G.currentIdx];if(n&&n.isAI)setTimeout(()=>aiPlay(n),400);
 }
 
@@ -1014,7 +1030,7 @@ function launchSingleGame(){
       cardCount:cp,cards:deck.slice(i*cp,(i+1)*cp)});
   }
   S.G={phase:'playing',players:ps,currentIdx:ri(0,total-1),
-    tableCards:[],claimedRank:null,claimedCount:0,lastPlayerIdx:-1,
+    tableCards:[],claimedRank:null,claimedCount:0,lastPlayerIdx:-1,_revealCards:false,
     round:1,logs:[],rouletteChamber:6,rouletteFired:0};
   S.humanIdx=0;
   const me=S.G.players[0];me._sel=new Set();me._claimedRank=null;
