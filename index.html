@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>骗子酒馆 · Liar's Bar</title>
+<style>
+:root{
+  --bg:#1a0a0a;--surface:#2d1810;--gold:#D4A843;--gold-dim:#8B6914;
+  --red:#e53935;--green:#4caf50;--text:#e0d5c1;--text-dim:#8a7a6a;
+  --card-w:72px;--card-h:104px;--card-sel-y:-14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+  min-height:100dvh;overflow-x:hidden;user-select:none;-webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.screen{display:none;flex-direction:column;align-items:center;min-height:100dvh;padding:20px 12px}
+.screen.active{display:flex}
+.panel{
+  background:var(--surface);border:2px solid var(--gold-dim);border-radius:12px;
+  padding:24px;max-width:520px;width:100%;
+}
+.panel-title{font-size:22px;color:var(--gold);text-align:center;margin-bottom:20px;letter-spacing:2px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:12px 24px;border:2px solid var(--gold-dim);border-radius:8px;
+  background:linear-gradient(180deg,rgba(212,168,67,.15) 0%,rgba(212,168,67,.05) 100%);
+  color:var(--gold);font-size:15px;font-weight:600;cursor:pointer;
+  transition:all .15s;letter-spacing:1px;min-height:44px;
+}
+.btn:hover{background:linear-gradient(180deg,rgba(212,168,67,.25) 0%,rgba(212,168,67,.1) 100%)}
+.btn:active{transform:scale(.96)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-primary{background:linear-gradient(180deg,#D4A843 0%,#a07828 100%);color:#2d1810;border-color:#D4A843}
+.btn-danger{border-color:var(--red);color:var(--red)}
+.row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+.label{font-size:13px;color:var(--text-dim);margin-bottom:6px}
+.input{
+  width:100%;padding:10px 14px;border:2px solid var(--gold-dim);border-radius:8px;
+  background:rgba(0,0,0,.4);color:var(--text);font-size:15px;outline:none;
+}
+.input:focus{border-color:var(--gold)}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;background:rgba(212,168,67,.15);color:var(--gold)}
+
+/* ── 首页 ── */
+.hero{text-align:center;margin-bottom:32px}
+.hero h1{font-size:36px;color:var(--gold);letter-spacing:4px;text-shadow:0 0 30px rgba(212,168,67,.3)}
+.hero p{color:var(--text-dim);font-size:14px;margin-top:6px}
+.mode-card{
+  padding:20px;border:2px solid var(--gold-dim);border-radius:12px;
+  cursor:pointer;text-align:center;transition:all .2s;background:rgba(0,0,0,.3);flex:1;min-width:140px;
+}
+.mode-card:hover{border-color:var(--gold);background:rgba(212,168,67,.08)}
+.mode-card .icon{font-size:40px;margin-bottom:8px}
+.mode-card .title{font-size:16px;color:var(--gold);font-weight:600}
+.mode-card .desc{font-size:12px;color:var(--text-dim);margin-top:4px}
+
+/* ── 联机大厅 ── */
+.room-info{background:rgba(0,0,0,.4);border-radius:8px;padding:16px;text-align:center}
+.room-code-display{font-size:48px;color:var(--gold);font-weight:bold;letter-spacing:8px;font-family:monospace}
+.player-list{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:16px}
+.player-chip{
+  padding:8px 16px;border-radius:8px;background:rgba(0,0,0,.4);
+  border:2px solid var(--gold-dim);font-size:14px;display:flex;align-items:center;gap:6px;
+}
+.player-chip.host{border-color:var(--gold)}
+.player-chip.me{border-color:var(--green)}
+.waiting-text{color:var(--text-dim);font-size:13px;text-align:center;margin-top:8px}
+.conn-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.conn-dot.on{background:var(--green);box-shadow:0 0 6px rgba(76,175,80,.5)}
+.conn-dot.off{background:var(--red)}
+
+/* ── 游戏界面 ── */
+.game-container{width:100%;max-width:640px;display:flex;flex-direction:column;min-height:100dvh;padding:8px 0}
+.game-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-size:13px;color:var(--text-dim)}
+.game-header .round{color:var(--gold);font-weight:600}
+.timer{text-align:center;font-size:16px;font-weight:bold;color:var(--gold);padding:4px;animation:pulse 1s ease infinite}
+.timer-danger{text-align:center;font-size:18px;font-weight:bold;color:var(--red);padding:4px;animation:pulse .5s ease infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+.opponents{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;padding:8px 4px;min-height:80px}
+.opponent{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:8px 10px;border-radius:10px;border:2px solid transparent;
+  background:rgba(0,0,0,.3);min-width:70px;position:relative;transition:all .3s;
+}
+.opponent.current{border-color:var(--gold);box-shadow:0 0 12px rgba(212,168,67,.3)}
+.opponent.dead{opacity:.35}
+.opponent .name{font-size:12px;color:var(--text-dim);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opponent .badge{font-size:10px}
+.opponent .dot{width:8px;height:8px;border-radius:50%;background:var(--gold);position:absolute;top:-4px;right:-4px;display:none}
+.opponent.current .dot{display:block}
+
+.table-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:140px;padding:12px}
+.table-cards{
+  display:flex;gap:6px;flex-wrap:wrap;justify-content:center;
+  padding:16px;border-radius:12px;background:rgba(139,105,20,.08);
+  border:1px dashed var(--gold-dim);min-height:100px;align-items:center;min-width:200px;
+}
+.table-claim{font-size:14px;color:var(--gold);margin-top:8px;text-align:center}
+.table-empty{color:var(--text-dim);font-size:13px}
+
+.hand-area{display:flex;flex-direction:column;align-items:center;padding:12px 4px 20px}
+.hand-cards{display:flex;justify-content:center;gap:4px;flex-wrap:wrap;padding:8px;min-height:100px}
+
+/* ── 卡牌 ── */
+.card{
+  width:var(--card-w);height:var(--card-h);border-radius:8px;
+  background:linear-gradient(135deg,#fafafa 0%,#e8e0d0 100%);
+  border:2px solid #ccc;position:relative;cursor:pointer;
+  transition:transform .15s,margin-top .15s,box-shadow .15s;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-weight:bold;flex-shrink:0;
+}
+.card:active{transform:scale(.93)}
+.card.selected{border-color:var(--gold);box-shadow:0 0 16px rgba(212,168,67,.5);margin-top:var(--card-sel-y)}
+.card.red{color:var(--red)}.card.black{color:#222}
+.card .rank{font-size:22px;line-height:1}
+.card .suit{font-size:20px;line-height:1;margin-top:-2px}
+.card .suit-sm{position:absolute;top:5px;left:6px;font-size:12px}
+.card .rank-sm{position:absolute;bottom:4px;right:5px;font-size:11px}
+
+.card-back{
+  width:var(--card-w);height:var(--card-h);border-radius:8px;
+  background:linear-gradient(135deg,#1a1a4e 0%,#0d0d2b 100%);
+  border:2px solid var(--gold-dim);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:28px;
+  position:relative;overflow:hidden;
+}
+.card-back::after{content:'';position:absolute;inset:6px;border-radius:4px;border:1px solid rgba(212,168,67,.3)}
+
+.rank-selector{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.rank-btn{
+  width:38px;height:38px;border-radius:8px;border:2px solid var(--gold-dim);
+  background:rgba(0,0,0,.4);color:var(--text);font-size:13px;font-weight:600;
+  cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;
+}
+.rank-btn:active{transform:scale(.92)}
+.rank-btn.sel{border-color:var(--gold);background:rgba(212,168,67,.2);color:var(--gold)}
+
+.actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:8px 12px 16px;min-height:60px}
+.actions .btn{min-width:120px}
+
+.log-area{
+  max-height:120px;overflow-y:auto;padding:8px 12px;
+  font-size:12px;color:var(--text-dim);border-top:1px solid var(--gold-dim);
+}
+.log-line{padding:2px 0}
+
+/* ── 轮盘 ── */
+.roulette-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.85);
+  display:flex;align-items:center;justify-content:center;z-index:100;
+}
+.roulette-box{text-align:center;padding:32px}
+.roulette-box .gun{font-size:64px}
+.roulette-box .gun.shake{animation:gunShake .15s ease 3}
+.roulette-box .title{font-size:18px;color:var(--gold);margin:12px 0 8px}
+.chambers{display:flex;gap:8px;justify-content:center;margin:16px 0}
+.chamber{
+  width:36px;height:36px;border-radius:50%;border:2px solid var(--gold-dim);
+  background:rgba(0,0,0,.5);transition:all .2s;
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+}
+.chamber.fired{background:rgba(100,100,100,.3);border-color:#555;color:#666}
+.chamber.active{background:var(--gold);border-color:var(--gold);box-shadow:0 0 16px rgba(212,168,67,.6)}
+.chamber.hit{background:var(--red);border-color:var(--red);box-shadow:0 0 20px rgba(229,57,53,.7)}
+.roulette-result{font-size:26px;font-weight:bold;margin:12px 0}
+.roulette-result.bang{color:var(--red)}.roulette-result.safe{color:#aaa}
+@keyframes gunShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+/* ── 响应式：手机 ── */
+@media(max-width:640px){
+  :root{--card-w:56px;--card-h:82px;--card-sel-y:-10px}
+  .panel{padding:16px;border-radius:10px}.panel-title{font-size:18px}
+  .hero h1{font-size:26px}.hero p{font-size:12px}
+  .btn{padding:10px 18px;font-size:14px}
+  .opponent{min-width:55px;padding:6px 8px}.opponent .name{font-size:11px;max-width:60px}
+  .card .rank{font-size:18px}.card .suit{font-size:16px}
+  .card .suit-sm{font-size:10px;top:3px;left:4px}.card .rank-sm{font-size:9px;bottom:2px;right:4px}
+  .chamber{width:28px;height:28px}.rank-btn{width:32px;height:32px;font-size:11px}
+  .room-code-display{font-size:36px;letter-spacing:4px}.hand-cards{gap:2px;padding:4px}
+}
+@media(max-width:380px){
+  :root{--card-w:48px;--card-h:70px;--card-sel-y:-8px}
+  .card .rank{font-size:16px}.card .suit{font-size:14px}
+  .opponent{min-width:48px;padding:4px 6px}.opponent .name{font-size:10px;max-width:48px}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════ 首页 ══════ -->
+<div id="screenHome" class="screen active">
+  <div class="hero">
+    <h1>🃏 骗子酒馆</h1>
+    <p>LIAR'S BAR — 说谎还是说实话？</p>
+    <div class="mt8" style="font-size:11px;color:var(--text-dim)">
+      <span class="conn-dot on"></span> 全球联机 · 手机可玩 · 无需下载
+    </div>
+  </div>
+  <div class="row" style="max-width:520px;width:100%">
+    <div class="mode-card" onclick="startSinglePlayer()">
+      <div class="icon">🤖</div><div class="title">单人模式</div><div class="desc">对战 AI 对手</div>
+    </div>
+    <div class="mode-card" onclick="startOnline()">
+      <div class="icon">🌐</div><div class="title">联机对战</div><div class="desc">全球玩家实时对战</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ 单人设置 ══════ -->
+<div id="screenSingleSetup" class="screen">
+  <div class="panel">
+    <div class="panel-title">⚙️ 游戏设置</div>
+    <div class="label">AI 对手数量</div>
+    <div class="row">
+      <button class="btn ai-cnt sel" data-n="2">2人</button>
+      <button class="btn ai-cnt" data-n="3">3人</button>
+      <button class="btn ai-cnt" data-n="4">4人</button>
+    </div>
+    <div class="label mt16">AI 难度</div>
+    <div class="row">
+      <button class="btn ai-diff" data-d="easy">简单</button>
+      <button class="btn ai-diff sel" data-d="normal">普通</button>
+      <button class="btn ai-diff" data-d="hard">困难</button>
+    </div>
+    <div class="row mt16">
+      <button class="btn btn-primary" onclick="launchSingleGame()" style="min-width:160px">开始游戏</button>
+      <button class="btn" onclick="backHome()">← 返回</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ 联机大厅 ══════ -->
+<div id="screenLobby" class="screen">
+  <div class="panel">
+    <div class="panel-title">🌐 联机对战</div>
+    <div style="font-size:12px;color:var(--text-dim);text-align:center;margin-bottom:16px">
+      <span class="conn-dot" id="mqttDot"></span> <span id="mqttStatus">正在连接...</span>
+    </div>
+    <div style="margin-bottom:16px">
+      <div class="label">你的名称</div>
+      <input id="playerNameInput" class="input" placeholder="输入名称" maxlength="12" style="text-align:center">
+    </div>
+    <div class="row">
+      <button class="btn btn-primary" id="btnCreate" onclick="createOnlineRoom()" disabled>🏠 创建房间</button>
+      <button class="btn" id="btnJoin" onclick="showJoinInput()" disabled>🚪 加入房间</button>
+    </div>
+    <div id="joinBlock" style="display:none;margin-top:16px">
+      <div class="label">输入房间号</div>
+      <div class="row">
+        <input id="joinCodeInput" class="input" placeholder="4位数字" maxlength="4" inputmode="numeric" pattern="[0-9]*" style="width:120px;text-align:center;font-size:20px;letter-spacing:4px">
+        <button class="btn btn-primary" onclick="joinOnlineRoom()">加入</button>
+      </div>
+    </div>
+    <div id="roomPanel" style="display:none;margin-top:16px">
+      <div class="room-info">
+        <div style="font-size:12px;color:var(--text-dim)">房间号</div>
+        <div class="room-code-display" id="roomCodeShow">----</div>
+      </div>
+      <div class="player-list" id="playerList"></div>
+      <div class="waiting-text" id="waitingText">等待玩家加入...</div>
+      <div class="row mt16">
+        <button class="btn btn-primary" id="btnStart" onclick="hostStartGame()" disabled>🎮 开始游戏</button>
+        <button class="btn" onclick="leaveOnlineRoom()">退出房间</button>
+      </div>
+      <div style="margin-top:16px;padding:12px;background:rgba(0,0,0,.3);border-radius:8px;font-size:12px;color:var(--text-dim);text-align:center">
+        📋 分享房间号 <b id="shareCode">----</b> 给好友即可加入
+      </div>
+    </div>
+    <div class="mt12" style="text-align:center">
+      <button class="btn" onclick="disconnectMqtt();backHome()" style="font-size:13px;padding:8px 16px">← 返回首页</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ 游戏界面 ══════ -->
+<div id="screenGame" class="screen">
+  <div class="game-container">
+    <div class="game-header">
+      <span>🃏 骗子酒馆</span>
+      <span class="round" id="roundInfo">第 1 局</span>
+      <span id="gameStatus"></span>
+    </div>
+    <div id="timerDisplay" class="timer" style="display:none"></div>
+    <div class="opponents" id="opponents"></div>
+    <div class="table-area">
+      <div class="table-cards" id="tableCards"><span class="table-empty">等待出牌...</span></div>
+      <div class="table-claim" id="tableClaim"></div>
+    </div>
+    <div class="rank-selector" id="rankSelector" style="display:none">
+      <button class="rank-btn" data-r="A">A</button><button class="rank-btn" data-r="K">K</button>
+      <button class="rank-btn" data-r="Q">Q</button><button class="rank-btn" data-r="J">J</button>
+      <button class="rank-btn" data-r="10">10</button><button class="rank-btn" data-r="9">9</button>
+      <button class="rank-btn" data-r="8">8</button>
+    </div>
+    <div class="actions" id="actions"></div>
+    <div class="hand-area"><div class="hand-cards" id="handCards"></div></div>
+    <div class="log-area" id="logArea"></div>
+  </div>
+</div>
+
+<!-- 轮盘遮罩 -->
+<div id="rouletteOverlay" class="roulette-overlay" style="display:none"></div>
+
+<!-- MQTT.js CDN -->
+<script src="https://unpkg.com/mqtt@5.10.3/dist/mqtt.min.js"></script>
+
+<script>
+// ═══════════════════════════════════════════
+//  全局状态
+// ═══════════════════════════════════════════
+const S = {
+  mode: null,          // 'single' | 'online'
+  // 单人
+  aiCount: 3, aiDiff: 'normal', humanIdx: 0,
+  // 联机
+  mqtt: null, myId: '', roomCode: '', isHost: false,
+  players: [],         // [{id, name, isHost}]
+  // 游戏
+  G: null,
+  // 倒计时
+  _turnTimer: null, _turnDeadline: 0, _tickInterval: null,
+};
+
+const TYPES = ['♥','♦','♣','♠'];
+const RANKS = ['A','K','Q','J','10','9','8','7','6','5','4','3','2'];
+
+// ═══ 工具 ═══
+function ri(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+function shuf(a){for(let i=a.length-1;i>0;i--){const j=ri(0,i);[a[i],a[j]]=[a[j],a[i]]}return a}
+function slp(ms){return new Promise(r=>setTimeout(r,ms))}
+function isR(s){return s==='♥'||s==='♦'}
+function genId(){return 'p_'+Date.now()+'_'+ri(1000,9999)}
+
+// ═══ 屏幕切换 ═══
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function backHome(){show('screenHome')}
+
+// ═══════════════════════════════════════════
+//  MQTT 连接
+// ═══════════════════════════════════════════
+const MQTT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+
+function startOnline(){
+  S.mode='online';S.myId=genId();
+  show('screenLobby');
+  document.getElementById('mqttStatus').textContent='正在连接...';
+  document.getElementById('mqttDot').className='conn-dot off';
+
+  S.mqtt = mqtt.connect(MQTT_BROKER, {
+    clientId: 'liarsbar_'+S.myId,
+    clean: true,
+    connectTimeout: 10000,
+    reconnectPeriod: 3000,
+    will: null, // will be set when joining room
+  });
+
+  S.mqtt.on('connect', ()=>{
+    document.getElementById('mqttStatus').textContent='已连接';
+    document.getElementById('mqttDot').className='conn-dot on';
+    document.getElementById('btnCreate').disabled=false;
+    document.getElementById('btnJoin').disabled=false;
+    // 预填随机名称
+    const ni=document.getElementById('playerNameInput');
+    if(!ni.value)ni.value='玩家'+ri(100,999);
+  });
+
+  S.mqtt.on('message', (topic, payload)=>{
+    try{
+      const msg=JSON.parse(payload.toString());
+      if(msg.from===S.myId)return; // 忽略自己的消息
+      handleMqttMsg(msg);
+    }catch(e){}
+  });
+
+  S.mqtt.on('error', (e)=>{
+    document.getElementById('mqttStatus').textContent='连接失败';
+    document.getElementById('mqttDot').className='conn-dot off';
+  });
+
+  S.mqtt.on('offline', ()=>{
+    document.getElementById('mqttStatus').textContent='已断开';
+    document.getElementById('mqttDot').className='conn-dot off';
+  });
+}
+
+function topic(){return 'liarsbar/'+S.roomCode}
+
+function sendMqtt(msg){
+  if(!S.mqtt||!S.mqtt.connected)return;
+  msg.from=S.myId;msg.ts=Date.now();
+  S.mqtt.publish(topic(),JSON.stringify(msg));
+}
+
+function disconnectMqtt(){
+  clearTurnTimer();
+  if(S._tickInterval){clearInterval(S._tickInterval);S._tickInterval=null}
+  if(S.mqtt){
+    try{S.mqtt.end()}catch(e){}
+    S.mqtt=null;
+  }
+}
+
+// ═══ 房间操作 ═══
+function getMyName(){
+  const v=document.getElementById('playerNameInput').value.trim();
+  return v||'玩家'+ri(100,999);
+}
+
+function createOnlineRoom(){
+  if(!S.mqtt||!S.mqtt.connected){alert('MQTT 未连接，请稍候重试');return}
+  S.roomCode=String(ri(1000,9999));
+  S.isHost=true;
+  S.players=[{id:S.myId,name:getMyName(),isHost:true}];
+
+  S.mqtt.subscribe(topic());
+  document.getElementById('roomCodeShow').textContent=S.roomCode;
+  document.getElementById('shareCode').textContent=S.roomCode;
+  document.getElementById('roomPanel').style.display='block';
+  document.getElementById('joinBlock').style.display='none';
+  updateLobbyUI();
+  sendMqtt({type:'lobby',hostId:S.myId,players:S.players});
+}
+
+function showJoinInput(){
+  document.getElementById('joinBlock').style.display='block';
+  document.getElementById('joinCodeInput').focus();
+}
+
+function joinOnlineRoom(){
+  const code=document.getElementById('joinCodeInput').value.trim();
+  if(!code||code.length!==4){alert('请输入4位房间号');return}
+  if(!S.mqtt||!S.mqtt.connected){alert('MQTT 未连接');return}
+
+  S.roomCode=code;S.isHost=false;
+  S.mqtt.subscribe(topic());
+
+  document.getElementById('roomCodeShow').textContent=code;
+  document.getElementById('shareCode').textContent=code;
+  document.getElementById('roomPanel').style.display='block';
+  document.getElementById('joinBlock').style.display='none';
+  document.getElementById('btnStart').style.display='none';
+
+  // 发送加入请求
+  sendMqtt({type:'join_req',name:getMyName()});
+}
+
+function leaveOnlineRoom(){
+  if(S.roomCode){
+    sendMqtt({type:'leave'});
+    S.mqtt.unsubscribe(topic());
+  }
+  clearTurnTimer();
+  if(S._tickInterval){clearInterval(S._tickInterval);S._tickInterval=null}
+  S.roomCode='';S.isHost=false;S.players=[];S.G=null;
+  document.getElementById('roomPanel').style.display='none';
+  document.getElementById('joinBlock').style.display='none';
+}
+
+function hostStartGame(){
+  if(!S.isHost||S.players.length<2)return;
+  S.G=initOnlineGame();
+  show('screenGame');
+  startTurnTimer();      // 内部会调 broadcastGameState + renderGame
+  startTickInterval();
+}
+
+// ═══ MQTT 消息处理 ═══
+function handleMqttMsg(msg){
+  switch(msg.type){
+    case 'lobby':
+      if(!S.isHost){S.players=msg.players;S.roomCode=S.roomCode;updateLobbyUI()}
+      break;
+    case 'join_req':
+      if(S.isHost&&!S.G){
+        const newPlayer={id:msg.from,name:msg.name||'玩家',isHost:false};
+        if(!S.players.find(p=>p.id===msg.from)){S.players.push(newPlayer)}
+        updateLobbyUI();
+        sendMqtt({type:'lobby',hostId:S.myId,players:S.players});
+      }
+      break;
+    case 'leave':
+      if(S.isHost){
+        S.players=S.players.filter(p=>p.id!==msg.from);
+        updateLobbyUI();
+        if(S.G){
+          const sp=S.G.players.find(p=>p.peerId===msg.from);
+          if(sp){sp.alive=false;addLog(`🚪 ${sp.name} 断开连接`)}
+          if(aliveCnt()<=1&&S.G.phase!=='over'){S.G.phase='over';S.G.winner=S.G.players.find(p=>p.alive)?.name||'无人';clearTurnTimer()}
+          else if(S.G.phase==='playing'&&sp&&S.G.currentIdx===sp.idx){
+            // 离开的玩家正好是当前出牌者，跳到下一个
+            clearTurnTimer();
+            S.G.tableCards=[];S.G.claimedRank=null;S.G.claimedCount=0;
+            S.G.currentIdx=nextAlive(sp.idx);
+            addLog(`⏭ 跳过 ${sp.name}`);
+          }
+        }
+        sendMqtt({type:'lobby',hostId:S.myId,players:S.players});
+        if(S.G){
+          if(S.G.phase==='playing'){broadcastGameState();startTurnTimer()}
+          else{broadcastGameState()}
+        }
+      }
+      break;
+    case 'game_state':
+      // 保留手牌选中状态
+      const prevMe=S.G?S.G.players.find(p=>p.peerId===S.myId):null;
+      S.G=msg.state;
+      if(prevMe){const newMe=S.G.players.find(p=>p.peerId===S.myId);if(newMe){newMe._sel=prevMe._sel;newMe._claimedRank=prevMe._claimedRank}}
+      if(document.getElementById('screenGame').classList.contains('active')===false)show('screenGame');
+      startTickInterval();
+      renderGame();
+      break;
+    case 'action':
+      if(S.isHost&&S.G){handlePlayerAction(msg)}
+      break;
+  }
+}
+
+function updateLobbyUI(){
+  const list=document.getElementById('playerList');
+  list.innerHTML=S.players.map(p=>
+    `<div class="player-chip${p.isHost?' host':''}${p.id===S.myId?' me':''}">${p.isHost?'👑':''} ${p.name}${p.id===S.myId?' (你)':''}</div>`
+  ).join('');
+  document.getElementById('btnStart').disabled=S.players.length<2;
+  document.getElementById('waitingText').textContent=
+    S.players.length<2?'等待玩家加入...':`${S.players.length} 人已就位`;
+}
+
+// ═══════════════════════════════════════════
+//  联机游戏逻辑（房主端运行）
+// ═══════════════════════════════════════════
+function initOnlineGame(){
+  const deck=makeDeck();
+  const total=S.players.length;
+  const cp=Math.floor(52/total);
+  const ps=[];
+  for(let i=0;i<total;i++){
+    ps.push({
+      idx:i,name:S.players[i].name,peerId:S.players[i].id,
+      alive:true,cardCount:cp,
+      cards:deck.slice(i*cp,(i+1)*cp),
+    });
+  }
+  return{
+    phase:'playing',players:ps,currentIdx:ri(0,total-1),
+    tableCards:[],claimedRank:null,claimedCount:0,lastPlayerIdx:-1,
+    round:1,logs:[],
+    rouletteChamber:6,rouletteFired:0,
+  };
+}
+
+function makeDeck(){
+  const d=[];
+  for(const t of TYPES)for(const r of RANKS)d.push({suit:t,rank:r});
+  return shuf(d);
+}
+
+function aliveCnt(){return S.G.players.filter(p=>p.alive).length}
+function nextAlive(from){
+  for(let i=1;i<=S.G.players.length;i++){
+    const idx=(from+i)%S.G.players.length;
+    if(S.G.players[idx].alive)return idx;
+  }
+  return from;
+}
+
+function addLog(text){S.G.logs.push(text)}
+
+function broadcastGameState(){
+  if(!S.isHost)return;
+  sendMqtt({
+    type:'game_state',
+    state:{
+      phase:S.G.phase,
+      players:S.G.players.map(p=>({
+        idx:p.idx,name:p.name,peerId:p.peerId,alive:p.alive,cardCount:p.cardCount,
+        cards:p.cards,
+      })),
+      currentIdx:S.G.currentIdx,
+      tableCards:S.G.phase!=='roulette'?S.G.tableCards:[],
+      claimedRank:S.G.claimedRank,
+      claimedCount:S.G.claimedCount,
+      round:S.G.round,
+      rouletteState:S.G.rouletteState||null,
+      winner:S.G.winner||null,
+      logs:S.G.logs.slice(-20),
+      deadline:S._turnDeadline||0,
+    }
+  });
+  renderGame(); // 房主自己也刷新
+}
+
+function removeCards(player,cards){
+  const used=new Set();
+  player.cards=player.cards.filter(c=>{
+    for(const rc of cards){
+      if(!used.has(rc)&&c.suit===rc.suit&&c.rank===rc.rank){used.add(rc);return false}
+    }
+    return true;
+  });
+}
+
+// ═══ 处理玩家动作（房主端） ═══
+async function handlePlayerAction(msg){
+  const G=S.G;
+  if(!G||G.phase==='over')return;
+
+  const playerIdx=G.players.findIndex(p=>p.peerId===msg.from);
+  if(playerIdx<0)return;
+
+  if(msg.action==='play_cards'&&playerIdx===G.currentIdx&&G.phase==='playing'&&G.tableCards.length===0){
+    // 出牌
+    clearTurnTimer();
+    const player=G.players[playerIdx];
+    removeCards(player,msg.data.cards);
+    G.tableCards=msg.data.cards;G.claimedRank=msg.data.claimedRank;G.claimedCount=msg.data.cards.length;
+    G.lastPlayerIdx=playerIdx;G.currentIdx=nextAlive(playerIdx);
+    addLog(`🃏 ${player.name} 打出 ${G.claimedCount} 张牌，声称是 ${G.claimedRank}`);
+    broadcastGameState();
+    startTurnTimer();
+  }else if(msg.action==='challenge'&&playerIdx===G.currentIdx&&G.phase==='playing'&&G.tableCards.length>0){
+    // 质疑
+    clearTurnTimer();
+    await processChallenge(msg.from, msg.data.challenge);
+  }
+}
+
+// ═══ 倒计时（房主端管理） ═══
+function clearTurnTimer(){
+  if(S._turnTimer){clearTimeout(S._turnTimer);S._turnTimer=null}
+  S._turnDeadline=0;
+}
+
+function startTurnTimer(){
+  clearTurnTimer();
+  if(!S.isHost||!S.G||S.G.phase!=='playing'||S.G.phase==='over')return;
+  const hasTable=S.G.tableCards&&S.G.tableCards.length>0;
+  const seconds=hasTable?10:15;
+  S._turnDeadline=Date.now()+seconds*1000;
+  S._turnTimer=setTimeout(()=>{
+    // 超时自动操作
+    if(!S.G||S.G.phase!=='playing')return;
+    const cur=S.G.players[S.G.currentIdx];
+    if(!cur||!cur.alive){startTurnTimer();return}
+    if(!hasTable){
+      // 自动出牌：出1张随机牌
+      if(cur.cards.length===0){return}
+      const card=cur.cards[0];
+      const rank=card.rank;
+      handlePlayerAction({from:cur.peerId,action:'play_cards',data:{cards:[card],claimedRank:rank,claimedCount:1}});
+    }else{
+      // 自动相信
+      handlePlayerAction({from:cur.peerId,action:'challenge',data:{challenge:false}});
+    }
+  },seconds*1000);
+  broadcastGameState();
+}
+
+// ═══ 客户端倒计时显示 ═══
+function getDeadline(){
+  if(S.isHost)return S._turnDeadline||0;
+  return (S.G&&S.G.deadline)||0;
+}
+
+function startTickInterval(){
+  if(S._tickInterval)return;
+  S._tickInterval=setInterval(()=>{
+    const el=document.getElementById('timerDisplay');
+    if(!el||!S.G||S.G.phase!=='playing')return;
+    const deadline=getDeadline();
+    if(!deadline){el.style.display='none';return}
+    const remain=Math.max(0,Math.ceil((deadline-Date.now())/1000));
+    if(remain<=0){el.style.display='none';return}
+    el.style.display='block';
+    const hasTable=S.G.tableCards&&S.G.tableCards.length>0;
+    el.textContent=hasTable?`⏱ ${remain}s 决定`:`⏱ ${remain}s 出牌`;
+    el.className=remain<=3?'timer-danger':'timer';
+  },200);
+}
+
+async function processChallenge(challengerId, doChallenge){
+  const G=S.G;
+  const challenger=G.players.find(p=>p.peerId===challengerId);
+  const liar=G.players[G.lastPlayerIdx];
+  if(!challenger)return;
+
+  if(!doChallenge){
+    addLog(`🤝 ${challenger.name} 选择相信`);
+    G.tableCards=[];G.claimedRank=null;G.claimedCount=0;
+    broadcastGameState();
+    startTurnTimer();
+    return;
+  }
+
+  addLog(`❗ ${challenger.name} 质疑 ${liar.name} 在说谎！`);
+  broadcastGameState();await slp(1200);
+
+  const allMatch=G.tableCards.every(c=>c.rank===G.claimedRank);
+  const realRank=G.tableCards.length>0?G.tableCards[0].rank:'?';
+  let loser;
+  if(allMatch){addLog(`✅ 验牌：全是 ${realRank}，${challenger.name} 质疑错误！`);loser=challenger}
+  else{addLog(`❌ 验牌：实际是 ${realRank}，${liar.name} 说谎！`);loser=liar}
+  broadcastGameState();await slp(1000);
+
+  await doRoulette(loser);
+}
+
+async function doRoulette(loser){
+  const G=S.G;
+  const remaining=G.rouletteChamber-G.rouletteFired;
+  const hit=Math.random()<(1/remaining);
+  G.rouletteFired++;
+  G.phase='roulette';
+  G.rouletteState={total:6,remaining,fired:G.rouletteFired-1,hit,victimIdx:loser.idx,victimName:loser.name};
+  broadcastGameState();
+  await slp(2200);
+
+  if(hit){
+    loser.alive=false;
+    addLog(`💀 ${loser.name} 被淘汰！`);G.rouletteChamber=6;G.rouletteFired=0;
+  }else{
+    addLog(`💨 ${loser.name} 逃过一劫！（剩余 ${G.rouletteChamber-G.rouletteFired} 发）`);
+  }
+
+  G.phase='playing';G.rouletteState=null;
+  G.tableCards=[];G.claimedRank=null;G.claimedCount=0;
+
+  if(aliveCnt()<=1){G.phase='over';G.winner=G.players.find(p=>p.alive)?.name||'无人';addLog(`🏆 ${G.winner} 获胜！`);clearTurnTimer();broadcastGameState();return}
+  if(G.players.find(p=>p.alive&&p.cards.length===0)){G.phase='over';G.winner=G.players.find(p=>p.cards.length===0).name;addLog(`🏆 ${G.winner} 获胜！`);clearTurnTimer();broadcastGameState();return}
+
+  G.currentIdx=nextAlive(loser.idx);
+  broadcastGameState();
+  startTurnTimer();
+}
+
+// ═══════════════════════════════════════════
+//  客户端渲染（两种模式共用）
+// ═══════════════════════════════════════════
+function renderGame(){
+  if(!S.G)return;
+  document.getElementById('roundInfo').textContent=`第 ${S.G.round} 局`;
+
+  if(S.G.phase==='over'){
+    document.getElementById('gameStatus').textContent='🏆 '+(S.G.winner||'?')+' 获胜';
+    document.getElementById('roundInfo').textContent='游戏结束';
+    document.getElementById('timerDisplay').style.display='none';
+  }else{
+    document.getElementById('gameStatus').textContent='';
+  }
+
+  renderOpponents();renderTable();renderHand();renderActions();renderLogs();
+  if(S.G.rouletteState&&document.getElementById('rouletteOverlay').style.display!=='flex'){
+    showRouletteAnim(S.G.rouletteState);
+  }
+}
+
+function myPlayer(){
+  if(!S.G)return null;
+  if(S.mode==='single')return S.G.players[S.humanIdx];
+  return S.G.players.find(p=>p.peerId===S.myId);
+}
+
+function renderOpponents(){
+  const el=document.getElementById('opponents');
+  if(!S.G)return;
+  const me=myPlayer();
+  const others=S.G.players.filter(p=>p!==me);
+  el.innerHTML=others.map(p=>{
+    const cls=['opponent'];
+    if(!p.alive)cls.push('dead');
+    if(p.idx===S.G.currentIdx)cls.push('current');
+    return `<div class="${cls.join(' ')}"><div class="dot"></div><div class="card-back">🂠</div><div class="name">${p.name}</div><span class="badge">${p.cardCount}张</span></div>`;
+  }).join('');
+}
+
+function renderTable(){
+  const cEl=document.getElementById('tableCards');
+  const clEl=document.getElementById('tableClaim');
+  if(S.G.phase==='roulette'){cEl.innerHTML='<span class="table-empty">俄罗斯轮盘...</span>';clEl.textContent='';return}
+  if(S.G.tableCards&&S.G.tableCards.length>0){
+    cEl.innerHTML=S.G.tableCards.map(c=>{
+      const cls=isR(c.suit)?'red':'black';
+      return `<div class="card ${cls}" style="pointer-events:none"><span class="suit-sm">${c.suit}</span><span class="rank">${c.rank}</span><span class="suit">${c.suit}</span></div>`;
+    }).join('');
+    clEl.textContent=`声称：${S.G.claimedCount}张 ${S.G.claimedRank}`;
+  }else{
+    cEl.innerHTML='<span class="table-empty">等待出牌...</span>';clEl.textContent='';
+  }
+}
+
+function renderHand(){
+  const container=document.getElementById('handCards');
+  const rankSel=document.getElementById('rankSelector');
+  if(!S.G){container.innerHTML='';rankSel.style.display='none';return}
+
+  const me=myPlayer();
+  if(!me||!me.cards||me.cards.length===0){container.innerHTML='';rankSel.style.display='none';return}
+
+  const myTurn=S.G.currentIdx===me.idx&&S.G.phase==='playing'&&(!S.G.tableCards||S.G.tableCards.length===0);
+  const sel=me._sel||new Set();
+
+  container.innerHTML=me.cards.map((c,i)=>{
+    const cls=['card'];
+    if(isR(c.suit))cls.push('red');else cls.push('black');
+    if(sel.has(i))cls.push('selected');
+    return `<div class="${cls.join(' ')}" data-idx="${i}" ${myTurn?'':'style="pointer-events:none"'}>
+      <span class="suit-sm">${c.suit}</span><span class="rank">${c.rank}</span><span class="suit">${c.suit}</span><span class="rank-sm">${c.suit}</span>
+    </div>`;
+  }).join('');
+
+  rankSel.style.display=myTurn?'flex':'none';
+
+  if(myTurn){
+    container.querySelectorAll('.card').forEach(el=>{
+      el.onclick=()=>{
+        const idx=parseInt(el.dataset.idx);
+        if(sel.has(idx))sel.delete(idx);else{if(sel.size>=3)return;sel.add(idx)}
+        me._sel=sel;renderHand();renderActions();
+      };
+    });
+    rankSel.querySelectorAll('.rank-btn').forEach(b=>{
+      b.onclick=()=>{
+        rankSel.querySelectorAll('.rank-btn').forEach(x=>x.classList.remove('sel'));
+        b.classList.add('sel');me._claimedRank=b.dataset.r;renderActions();
+      };
+    });
+    if(me._claimedRank){const rb=rankSel.querySelector(`[data-r="${me._claimedRank}"]`);if(rb)rb.classList.add('sel')}
+  }
+}
+
+function renderActions(){
+  const div=document.getElementById('actions');div.innerHTML='';
+  if(!S.G)return;
+  const me=myPlayer();if(!me)return;
+
+  if(S.G.phase==='over'){
+    if(S.mode==='single'){
+      const b=document.createElement('button');b.className='btn btn-primary';b.textContent='🔄 再来一局';b.onclick=launchSingleGame;div.appendChild(b);
+    }else if(S.isHost){
+      const b=document.createElement('button');b.className='btn btn-primary';b.textContent='🔄 再来一局';b.onclick=hostStartGame;div.appendChild(b);
+    }else{
+      div.innerHTML='<span style="color:var(--text-dim);font-size:13px">等待房主开始新一局...</span>';
+    }
+    const b2=document.createElement('button');b2.className='btn';b2.textContent='← 返回';b2.onclick=()=>{S.mode==='single'?backHome():leaveOnlineRoom();show('screenHome');};div.appendChild(b2);
+    return;
+  }
+
+  const myTurn=S.G.currentIdx===me.idx;
+  if(S.G.phase==='playing'&&(!S.G.tableCards||S.G.tableCards.length===0)&&myTurn){
+    const sel=me._sel||new Set();const cnt=sel.size;const rank=me._claimedRank||'?';
+    const b=document.createElement('button');b.className='btn btn-primary';
+    b.textContent=cnt===0?'请选牌':`出牌: ${cnt}张 ${rank}`;
+    b.disabled=cnt===0||!me._claimedRank;b.onclick=()=>doPlay(me);div.appendChild(b);
+  }else if(S.G.phase==='playing'&&S.G.tableCards&&S.G.tableCards.length>0&&myTurn){
+    const b1=document.createElement('button');b1.className='btn';b1.textContent='✓ 相信';b1.onclick=()=>doChallengeAct(false);
+    const b2=document.createElement('button');b2.className='btn btn-danger';b2.textContent='✗ 质疑';b2.onclick=()=>doChallengeAct(true);
+    div.appendChild(b1);div.appendChild(b2);
+  }else if(S.G.phase==='playing'){
+    const cur=S.G.players[S.G.currentIdx];
+    const txt=S.G.tableCards&&S.G.tableCards.length>0?`等待 ${cur?.name} 决定...`:`等待 ${cur?.name} 出牌...`;
+    div.innerHTML=`<span style="color:var(--text-dim);font-size:13px">${txt}</span>`;
+  }
+}
+
+function renderLogs(){
+  const el=document.getElementById('logArea');
+  if(!S.G||!S.G.logs)return;
+  el.innerHTML=S.G.logs.slice(-15).map(l=>`<div class="log-line">${l}</div>`).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+// ═══ 出牌 & 质疑（分发单人/联机） ═══
+function doPlay(me){
+  const sel=[...me._sel].map(i=>me.cards[i]);
+  if(S.mode==='online'){
+    if(S.isHost){
+      // 房主直接处理自己的动作
+      handlePlayerAction({from:S.myId,action:'play_cards',data:{cards:sel,claimedRank:me._claimedRank,claimedCount:sel.length}});
+    }else{
+      sendMqtt({type:'action',action:'play_cards',data:{cards:sel,claimedRank:me._claimedRank,claimedCount:sel.length}});
+    }
+  }else{
+    singleDoPlay(me,sel);
+  }
+  me._sel=new Set();me._claimedRank=null;
+  document.getElementById('rankSelector').querySelectorAll('.rank-btn').forEach(x=>x.classList.remove('sel'));
+  renderHand();renderActions();
+}
+
+function doChallengeAct(doIt){
+  if(S.mode==='online'){
+    if(S.isHost){
+      handlePlayerAction({from:S.myId,action:'challenge',data:{challenge:doIt}});
+    }else{
+      sendMqtt({type:'action',action:'challenge',data:{challenge:doIt}});
+    }
+  }else{
+    singleDoChallenge(doIt);
+  }
+}
+
+// ═══════════════════════════════════════════
+//  单人模式 AI 逻辑
+// ═══════════════════════════════════════════
+function singleDoPlay(me,cards){
+  const G=S.G;
+  removeCards(me,cards);
+  G.tableCards=cards;G.claimedRank=me._claimedRank;G.claimedCount=cards.length;
+  G.lastPlayerIdx=me.idx;G.currentIdx=nextAlive(me.idx);
+  renderGame();
+  setTimeout(()=>{const n=G.players[G.currentIdx];if(n&&n.isAI&&n.alive)aiPlay(n)},600);
+}
+
+async function singleDoChallenge(doIt){
+  const G=S.G;
+  const challenger=G.players[G.currentIdx];
+  const liar=G.players[G.lastPlayerIdx];
+  if(!doIt){addLog(`🤝 ${challenger.name} 选择相信`);G.tableCards=[];G.claimedRank=null;G.claimedCount=0;renderGame();await slp(400);if(challenger.isAI)aiPlay(challenger);return}
+  addLog(`❗ ${challenger.name} 质疑 ${liar.name} 在说谎！`);renderGame();await slp(1000);
+  const ok=G.tableCards.every(c=>c.rank===G.claimedRank);
+  const real=G.tableCards.length>0?G.tableCards[0].rank:'?';
+  let loser;
+  if(ok){addLog(`✅ 验牌：全是 ${real}，${challenger.name} 质疑错误！`);loser=challenger}
+  else{addLog(`❌ 验牌：实际是 ${real}，${liar.name} 说谎！`);loser=liar}
+  renderGame();await slp(800);
+  await singleRoulette(loser);
+}
+
+async function singleRoulette(loser){
+  const G=S.G;
+  const rem=G.rouletteChamber-G.rouletteFired;
+  const hit=Math.random()<(1/rem);G.rouletteFired++;
+  await showRouletteAnim({total:6,remaining:rem,fired:G.rouletteFired-1,hit,victimName:loser===S.G.players[S.humanIdx]?'你':loser.name});
+  if(hit){loser.alive=false;addLog(`💀 ${loser===G.players[G.humanIdx]?'你':loser.name} 被淘汰！`);G.rouletteChamber=6;G.rouletteFired=0}
+  else{addLog(`💨 ${loser===G.players[G.humanIdx]?'你':loser.name} 逃过一劫！`)}
+  renderGame();await slp(800);
+  if(aliveCnt()<=1){G.phase='over';G.winner=G.players.find(p=>p.alive)?.name||'无人';addLog(`🏆 ${G.winner} 获胜！`);renderGame();return}
+  if(G.players[G.humanIdx]&&G.players[G.humanIdx].cards.length===0){G.phase='over';G.winner=G.players[G.humanIdx].name;addLog(`🏆 ${G.winner} 获胜！`);renderGame();return}
+  G.tableCards=[];G.claimedRank=null;G.claimedCount=0;G.currentIdx=nextAlive(loser.idx);
+  renderGame();const n=G.players[G.currentIdx];if(n&&n.isAI)setTimeout(()=>aiPlay(n),400);
+}
+
+async function aiPlay(p){
+  const G=S.G;if(G.phase==='over'||!p.alive)return;
+  const cnt=Math.min(p.cards.length,ri(1,3));
+  const cards=p.cards.slice(0,cnt);
+  const h={easy:.55,normal:.7,hard:.82};const hon=h[S.aiDiff]||.7;
+  let rank;if(Math.random()<hon)rank=cards[0].rank;else{const o=RANKS.filter(r=>!cards.some(c=>c.rank===r));rank=o[ri(0,o.length-1)]}
+  removeCards(p,cards);G.tableCards=cards;G.claimedRank=rank;G.claimedCount=cnt;G.lastPlayerIdx=p.idx;
+  addLog(`🤖 ${p.name} 打出 ${cnt} 张牌，声称是 ${rank}`);renderGame();await slp(800);
+  G.currentIdx=nextAlive(p.idx);const n=G.players[G.currentIdx];
+  if(n.isAI)await aiDecide(n);else renderGame();
+}
+
+async function aiDecide(p){
+  const G=S.G;
+  const r={easy:.32,normal:.48,hard:.65};let chal=Math.random()<(r[S.aiDiff]||.48);
+  if(S.aiDiff==='hard'&&p.cards.filter(c=>c.rank===G.claimedRank).length+G.claimedCount>4)chal=true;
+  if(!chal){addLog(`🤖 ${p.name} 选择相信`);G.tableCards=[];G.claimedRank=null;G.claimedCount=0;renderGame();await slp(400);return aiPlay(p)}
+  const liar=G.players[G.lastPlayerIdx];addLog(`🤖 ${p.name} 质疑 ${liar.name} 在说谎！`);renderGame();await slp(1000);
+  const ok=G.tableCards.every(c=>c.rank===G.claimedRank);
+  const real=G.tableCards.length>0?G.tableCards[0].rank:'?';
+  let loser;if(ok){addLog(`✅ 验牌：全是 ${real}，${p.name} 质疑错误！`);loser=p}else{addLog(`❌ 验牌：实际是 ${real}，${liar.name} 说谎！`);loser=liar}
+  renderGame();await slp(800);await singleRoulette(loser);
+}
+
+// ═══════════════════════════════════════════
+//  轮盘动画
+// ═══════════════════════════════════════════
+async function showRouletteAnim(rs){
+  return new Promise(resolve=>{
+    const overlay=document.getElementById('rouletteOverlay');
+    overlay.style.display='flex';
+    overlay.innerHTML=`<div class="roulette-box"><div class="gun" id="gunIcon">🔫</div><div class="title">${rs.victimName} 接受惩罚</div><div class="chambers" id="chambers"></div><div class="roulette-result" id="rouletteResult"></div></div>`;
+    const cel=document.getElementById('chambers');
+    for(let i=0;i<6;i++){const d=document.createElement('div');d.className='chamber';d.textContent=i<rs.fired?'✕':'?';if(i<rs.fired)d.classList.add('fired');cel.appendChild(d)}
+    const rem=[];for(let i=rs.fired;i<6;i++)rem.push(i);
+    const bp=rem[ri(0,rem.length-1)];
+    let spin=0;const ts=15+bp;
+    const iv=setInterval(()=>{
+      document.querySelectorAll('#chambers .chamber').forEach((c,i)=>{if(i<rs.fired)return;c.className='chamber'});
+      const cur=spin%6;if(cur>=rs.fired)document.querySelectorAll('#chambers .chamber')[cur].classList.add('active');
+      spin++;if(spin>=ts){clearInterval(iv);
+        document.querySelectorAll('#chambers .chamber').forEach((c,i)=>{if(i<rs.fired)return;c.className='chamber';if(i===bp)c.classList.add(rs.hit?'hit':'active')});
+        const gun=document.getElementById('gunIcon'),res=document.getElementById('rouletteResult');
+        if(rs.hit){gun.classList.add('shake');res.textContent='💥 BANG！';res.className='roulette-result bang'}
+        else{res.textContent='💨 咔嗒...空弹';res.className='roulette-result safe'}
+        setTimeout(()=>{overlay.style.display='none';resolve()},1600);
+      }
+    },80);
+  });
+}
+
+// ═══════════════════════════════════════════
+//  启动单人游戏
+// ═══════════════════════════════════════════
+function launchSingleGame(){
+  S.mode='single';
+  const total=1+S.aiCount;
+  const deck=makeDeck();
+  const cp=Math.floor(52/total);
+  const names=['你','酒保老王','牛仔杰克','赌徒山姆','女枪手露丝'];
+  const ps=[];
+  for(let i=0;i<total;i++){
+    ps.push({idx:i,name:names[i]||'AI-'+i,alive:true,isAI:i>0,peerId:'local_'+i,
+      cardCount:cp,cards:deck.slice(i*cp,(i+1)*cp)});
+  }
+  S.G={phase:'playing',players:ps,currentIdx:ri(0,total-1),
+    tableCards:[],claimedRank:null,claimedCount:0,lastPlayerIdx:-1,
+    round:1,logs:[],rouletteChamber:6,rouletteFired:0};
+  S.humanIdx=0;
+  const me=S.G.players[0];me._sel=new Set();me._claimedRank=null;
+  show('screenGame');renderGame();
+  setTimeout(()=>{const f=S.G.players[S.G.currentIdx];if(f&&f.isAI&&f.alive)aiPlay(f)},300);
+}
+
+// ═══ 单人模式设置按钮 ═══
+document.querySelectorAll('.ai-cnt').forEach(b=>{b.onclick=()=>{document.querySelectorAll('.ai-cnt').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');S.aiCount=parseInt(b.dataset.n)}});
+document.querySelectorAll('.ai-diff').forEach(b=>{b.onclick=()=>{document.querySelectorAll('.ai-diff').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');S.aiDiff=b.dataset.d}});
+
+// ═══ 键盘快捷键（单人模式） ═══
+document.addEventListener('keydown',e=>{
+  if(S.mode!=='single'||!S.G||S.G.phase!=='playing')return;
+  const me=S.G.players[S.humanIdx];if(!me||!me.alive)return;
+  if(S.G.currentIdx===S.G.humanIdx&&(!S.G.tableCards||S.G.tableCards.length===0)){
+    if(e.key>='1'&&e.key<='9'){const idx=parseInt(e.key)-1;if(idx<me.cards.length){const sel=me._sel||new Set();if(sel.has(idx))sel.delete(idx);else{if(sel.size>=3)return;sel.add(idx)}me._sel=sel;renderHand();renderActions()}}
+    if(e.key==='Enter')doPlay(me);
+  }else if(S.G.currentIdx===S.G.humanIdx&&S.G.tableCards&&S.G.tableCards.length>0){
+    if(e.key==='ArrowLeft'||e.key==='a')doChallengeAct(false);
+    if(e.key==='ArrowRight'||e.key==='d')doChallengeAct(true);
+  }
+});
+
+// ═══ 从联机切换到游戏界面：当收到 game_state 时自动触发 ═══
+
+</script>
+</body>
+</html>
